@@ -1,3 +1,4 @@
 env GOOS=freebsd GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -extldflags '-static'" -o gores cmd/gores/main.go
 scp gores hostpoint:~/public_html/frank/cgi-bin
+scp templates/* hostpoint:~/public_html/frank/templates
 rm gores
