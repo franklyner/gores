@@ -166,11 +166,14 @@ func createRequest() (Request, error) {
 		return Request{}, fmt.Errorf("error parsing form (%s): %w", qryStr, err)
 	}
 
-	return Request{
+	req := Request{
 		Path:  os.Getenv(EnvPATH),
 		Query: qry,
 		Form:  form,
-	}, nil
+	}
+	log.Default().Printf("Processing request: %+v", req)
+
+	return req, nil
 }
 
 func parseForm() (url.Values, error) {
@@ -214,8 +217,13 @@ func createResponse() *Response {
 }
 
 func (resp *Response) SendRedirect(target string) {
+	path := target
+	if !strings.HasPrefix(target, "/") {
+		path = fmt.Sprintf("%s/%s", Config.RootPath, target)
+	}
+	log.Default().Print("Redirecting to: ", path)
 	resp.Status = 303
-	resp.Location = Config.RootPath + target
+	resp.Location = path
 }
 
 // Session handling
@@ -237,15 +245,7 @@ func (s *SessionImpl) Set(key, value string) {
 }
 
 func (s *SessionImpl) GetCoockieStr() string {
-	sb := strings.Builder{}
-	first := true
-	for k, v := range s.cookies {
-		if !first {
-			sb.WriteString("; ")
-		}
-		sb.WriteString(fmt.Sprintf("%s=%s", k, v))
-	}
-	return sb.String()
+	return fmt.Sprintf("%s=%s", SessionIDCookieName, s.cookies[SessionIDCookieName])
 }
 
 func (s *SessionImpl) Delete() {
@@ -308,6 +308,7 @@ func initSession() {
 			s := strings.TrimSpace(p)
 			kv := strings.Split(s, "=")
 			cookies[kv[0]] = kv[1]
+			break // only take first
 		}
 	}
 
@@ -323,6 +324,7 @@ func initSession() {
 			log.Default().Printf("Session Variables: %+v", Session.values)
 			return
 		}
+		log.Default().Print("no session found in db")
 	}
 
 	sessionID = uuid.NewString()

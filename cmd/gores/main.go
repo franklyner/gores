@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"franklyner/gores/app"
@@ -9,18 +10,41 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
 
+const (
+	ConfigHost           = "db_host"
+	ConfigDBName         = "db_name"
+	ConfigDBUser         = "db_user"
+	ConfigDBPwd          = "db_password"
+	ConfigBGColor        = "bg_color"
+	ConfigContentBGColor = "content_bg_color"
+	ConfigTitle          = "title"
+)
+
+var config map[string]string
+
 func main() {
+	confData, err := os.ReadFile("../.goresconf")
+	if err != nil {
+		panic(err)
+	}
+	config = make(map[string]string)
+	err = json.Unmarshal(confData, &config)
+	if err != nil {
+		panic(err)
+	}
 	middleware.Initialize(middleware.ConfigImpl{
-		DBHost:     "lynersc.mysql.db.internal",
-		DBName:     "lynersc_frank",
-		DBUser:     "lynersc_frank",
-		DBPassword: "Z8wMG4iwmH-nT5cGgHVW",
+		DBHost:     config[ConfigHost],
+		DBName:     config[ConfigDBName],
+		DBUser:     config[ConfigDBUser],
+		DBPassword: config[ConfigDBPwd],
 		RootPath:   "/cgi-bin/gores",
 	})
+	log.Default().Print("Request start")
 	middleware.DefaultRouter.AddHandler("/env", showEnv)
 	middleware.DefaultRouter.AddHandler("/tmpl", testTmpl)
 	middleware.DefaultRouter.AddHandler("/redir", testRedirect)
@@ -30,13 +54,15 @@ func main() {
 	middleware.DefaultRouter.AddHandler("/logout", doLogout)
 	middleware.DefaultRouter.AddHandler("/dologin", doLogin)
 	middleware.DefaultRouter.AddHandler("/main", showMain)
+	middleware.DefaultRouter.AddHandler("/doSave", doSave)
+	middleware.DefaultRouter.AddHandler("/doDelete", doDelete)
 
 	middleware.DefaultRouter.Handle()
 }
 
 func showLogin(req middleware.Request, resp *middleware.Response) bool {
 	html := `
-	<form method="POST" action="dologin">
+	<form method="POST" action="/cgi-bin/gores/dologin">
 		Username: <input type="text" name="username" /><br />
 		Password: <input type="password" name="password"><br />
 		<input type="submit" name="login" />
@@ -71,13 +97,13 @@ func doLogin(req middleware.Request, resp *middleware.Response) bool {
 	}
 	middleware.Session.Set("username", username)
 	log.Default().Printf("set username %s to session, redirecting to main", middleware.Session.Get("username"))
-	resp.SendRedirect("/main")
+	resp.SendRedirect("main")
 	return false
 }
 
 func doLogout(req middleware.Request, resp *middleware.Response) bool {
 	middleware.Session.Delete()
-	resp.SendRedirect("/login")
+	resp.SendRedirect("/index.html")
 	return true
 }
 
@@ -85,20 +111,49 @@ func showMain(req middleware.Request, resp *middleware.Response) bool {
 	if !ensureAuth(resp) {
 		return true
 	}
-	now := time.Now()
-	cal, err := app.LoadCalendarForMonth(now.Year(), int(now.Month()))
+	mstr := req.Query.Get("m")
+	ystr := req.Query.Get("y")
+	var mon int
+	var year int
+	var err error
+	if mstr == "" || ystr == "" {
+		now := time.Now()
+		year = now.Year()
+		mon = int(now.Month())
+	} else {
+		mon, err = strconv.Atoi(mstr)
+		if err != nil {
+			log.Default().Printf("Error reading month param: %s\n", err.Error())
+			return true
+		}
+		year, err = strconv.Atoi(ystr)
+		if err != nil {
+			log.Default().Printf("Error reading year param: %s\n", err.Error())
+			return true
+		}
+	}
+	log.Default().Print("m: ", mon, " y:", year)
+	cal, err := app.LoadCalendarForMonth(year, mon)
 	if err != nil {
-		fmt.Fprintf(resp.Body, "Error loading calendar: %s\n", err.Error())
+		log.Default().Printf("Error loading calendar: %s\n", err.Error())
 		return true
 	}
+	log.Default().Print("loaded calendar")
 
-	tmpl, err := template.ParseFiles("../templates/main.twig")
+	tmpl, err := template.ParseFiles("../templates/main.twig", "../templates/tooltip.twig")
 	if err != nil {
 		fmt.Fprintf(resp.Body, "Error loading template: %s\n", err.Error())
 		return true
 	}
+	data := map[string]any{
+		"Cal":      cal,
+		"Username": middleware.Session.Get("username"),
+		"Message":  middleware.Session.Get("message"),
+		"Config":   config,
+	}
+	middleware.Session.Set("message", "") // deleting message
 
-	err = tmpl.Execute(resp.Body, cal)
+	err = tmpl.Execute(resp.Body, data)
 	if err != nil {
 		fmt.Fprintf(resp.Body, "Error executing template: %s\n", err.Error())
 		return true
@@ -120,6 +175,56 @@ func showMain(req middleware.Request, resp *middleware.Response) bool {
 	// }
 	// fmt.Fprintln(resp.Body, "<table>")
 
+	return true
+}
+
+func doSave(req middleware.Request, resp *middleware.Response) bool {
+	byear, _ := strconv.Atoi(req.Form.Get("byear"))
+	bmonth, _ := strconv.Atoi(req.Form.Get("bmonth"))
+	bday, _ := strconv.Atoi(req.Form.Get("bday"))
+	eyear, _ := strconv.Atoi(req.Form.Get("end_year"))
+	emonth, _ := strconv.Atoi(req.Form.Get("end_month"))
+	eday, _ := strconv.Atoi(req.Form.Get("end_day"))
+
+	start := time.Date(byear, time.Month(bmonth), bday, 0, 0, 0, 0, time.UTC)
+	end := time.Date(eyear, time.Month(emonth), eday, 0, 0, 0, 0, time.UTC)
+
+	username := middleware.Session.Get("username")
+	e := app.Entry{
+		User:        username,
+		Begin:       start,
+		End:         end,
+		Bemerkungen: req.Form.Get("bemerkung"),
+	}
+	err := app.CreateEntry(e)
+	if err != nil {
+		log.Default().Print(err)
+		if errors.Is(err, app.ErrConflict) {
+			middleware.Session.Set("message", "Konflikt mit einer bestehenden Buchung!")
+		} else {
+			middleware.Session.Set("message", "Etwas ist beim speichern schiefgelaufen...")
+		}
+	}
+	m := req.Form.Get("m")
+	y := req.Form.Get("y")
+
+	path := fmt.Sprintf("main?m=%s&y=%s", m, y)
+	resp.SendRedirect(path)
+	return true
+}
+
+func doDelete(req middleware.Request, resp *middleware.Response) bool {
+	entryID, _ := strconv.Atoi(req.Query.Get("id"))
+	m := req.Query.Get("m")
+	y := req.Query.Get("y")
+	user := middleware.Session.Get("username")
+	err := app.DeleteEntry(entryID, user)
+	if err != nil {
+		log.Default().Print(err)
+	}
+
+	path := fmt.Sprintf("main?m=%s&y=%s", m, y)
+	resp.SendRedirect(path)
 	return true
 }
 
@@ -203,7 +308,7 @@ func testTmpl(req middleware.Request, resp *middleware.Response) bool {
 func ensureAuth(resp *middleware.Response) bool {
 	username := middleware.Session.Get("username")
 	if username == "" {
-		resp.SendRedirect("/logout")
+		resp.SendRedirect("/index.html")
 		return false
 	}
 	return true

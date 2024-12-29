@@ -1,6 +1,6 @@
 <html>
 <head>
-<title>Engelberg Reservationen</title>
+<title>{{ .Config.title }} Reservationen</title>
 <style type="text/css">
 td.wrongmonth {
 	background-color: #BCADB0;border: 1px solid #888;
@@ -39,16 +39,73 @@ col.cal {
 <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <!-- script type="text/javascript" src="http://getfirebug.com/releases/lite/1.2/firebug-lite-compressed.js"></script-->
+<SCRIPT LANGUAGE="JavaScript" type="text/javascript">
 
+function checkpwd(){
+	if (document.pwdchange.newpwd.value == ""){
+		alert("Bitte f�lle auch das erste Feld aus");
+		document.pwdchange.newpwd.focus();
+		return false;
+	}
+	if (document.pwdchange.newpwd2.value == ""){
+		alert("Bitte f�lle auch das zweite Feld aus");
+		document.pwdchange.newpwd2.focus();
+		return false;
+	}
+	if (document.pwdchange.newpwd.value != document.pwdchange.newpwd2.value){
+		alert("Die beiden Felder stimmen nicht �berein!!!");
+		return false;
+	}
+	return true;
+}
+
+function ShowDiv(e, divId, isFree)
+{
+	console.log("in ShowDiv. divid: "+divId);
+	UnTip();
+	if (!isFree) {
+		TagToTip(divId);
+	}
+}
+
+function changeEndValues(unit) {
+	var begId = "b"+unit;
+	var endId = "end_"+unit;
+	var begVal = document.getElementById(begId).value;
+	var endEl = document.getElementById(endId);
+	if ("day" == unit && "1" == endEl.value) {
+		endEl.value = begVal;
+	}
+	if ("month" == unit && "12" == endEl.value) {
+		endEl.value = begVal;
+	}
+	if ("year" == unit && "2024" == endEl.value) {
+		endEl.value = begVal;
+	}
+}
+
+function setDropDowns() {
+	const urlParams = new URLSearchParams(window.location.search);
+	var month = urlParams.get('m');
+	if (month == null || month == "") {
+		month = (new Date()).getMonth();
+		month += 1;
+	}
+	console.log(month);
+	document.getElementById('bmonth').value= month;
+	document.getElementById('end_month').value= month;
+}
+
+</SCRIPT>
 </head>
 <!--#4688FF  -->
-<body style="background-color: #e1e1e1; text-align: center;">
+<body style="background-color: {{ .Config.bg_color }}; text-align: center;" onLoad="setDropDowns();">
 <script type="text/javascript" src="/resources/wz_tooltip.js"></script>
 <div
-	style="border: 1px solid #888; width: 1000px; margin: 0 auto; background-color: #F5F1DE; text-align: left;">
+	style="border: 1px solid #888; width: 1000px; margin: 0 auto; background-color: {{ .Config.content_bg_color }}; text-align: left;">
 <div style="text-align: center;">
 	<img src="/pix/titelbild.png">
-	<h1>Engelberg</h1>
+	<h1>{{ .Config.title }}</h1>
 </div>
 
 <div
@@ -56,22 +113,32 @@ col.cal {
 
 
 	<div id="curMonth" style="width: 500; text-align: center;border: 1px solid #888;" onmouseover="UnTip();">
-		<b>{{ .MonthYear }}</b>
+		<b>{{ .Cal.MonthYear }}</b>
 	</div>
 
 	<div id="monthNavi" style="width: 500; border: 1px solid #888; height: 20px; position: relative; top: -1px;" onmouseover="UnTip();">
-		<div style="float:left; margin-left: 100px; width: 40px; text-align: right;">
-			<a href="main.php?m={{ .Month }}&y={{ .PrevYear }}">{{ .PrevYear }}</a>
-		</div>
-	 	<div style="float:left; margin-left: 0px; width: 70px; text-align: right;">
-			<a href="main.php?m={{ .PrevMonth }}&y={{ .Year }}">{{ .PrevMonth }}</a>
-		</div>
-	 	<div style="float:left; margin-left: 80px; width: 70px;">
-			<a href="main.php?m={{ .NextMonth }}&y={{ .Year }}">{{ .NextMonth }}</a>
-		</div>
-	 	<div style="float:left; margin-left: 10px; width: 40px;">
-			<a href="main.php?m={{ .Month }}&y={{ .NextYear }}">{{ .NextYear }}</a>
-	 	</div>
+		<table >
+			<tr>
+	 	<td width="83px" align="center">
+			<a href="main?m={{ .Cal.DecMonth }}&y={{ .Cal.DecYear }}"><<</a>
+	 	</td>
+	 	<td width="83px" align="center">
+			<a href="main?m={{ .Cal.Month }}&y={{ .Cal.PrevYear }}">{{ .Cal.PrevYear }}</a>
+	 	</td>
+	 	<td width="83px" align="center">
+					<a href="main?m={{ .Cal.PrevMonth }}&y={{ .Cal.Year }}">{{ .Cal.PrevMonthName }}</a>
+	 	</td>
+	 	<td width="83px" align="center">
+					<a href="main?m={{ .Cal.NextMonth }}&y={{ .Cal.Year }}">{{ .Cal.NextMonthName }}</a>
+	 	</td>
+	 	<td width="83px" align="center">
+			<a href="main?m={{ .Cal.Month }}&y={{ .Cal.NextYear }}">{{ .Cal.NextYear }}</a>
+	 	</td>
+	 	<td width="83px" align="center">
+			<a href="main?m={{ .Cal.IncMonth }}&y={{ .Cal.IncYear }}">>></a>
+	 	</td>
+			</tr>
+		</table>
 	</div>
 	<div style="border: 1px solid #888; position: relative; top: -2px; padding: 0px;">
 <table cellspacing="0" cellpadding="0" width="100%">
@@ -93,7 +160,7 @@ col.cal {
 		<td><b>Fr</b></td>
 		<td><b>Sa</b></td>
 	</tr>
-	{{ range .Weeks}}
+	{{ range .Cal.Weeks}}
 		<tr class="cal">
 		{{ range .}}
         <!--
@@ -115,7 +182,7 @@ col.cal {
 			<td class="'.$classname.'"><div style="height: 100%;" onMouseOver="ShowDiv(event, \'tip'.$kalender->days[$i][$j]->entry->resId.'\','.$isFree.');"><div style="position: relative; top: 5px;">'.$kalender->days[$i][$j]->getDayNumber().'</div>';
 			echo renderCellContent($kalender, $i, $j);
          -->
-			<td class="'rightmonth"><div style="height: 100%;" ><div style="position: relative; top: 5px;">{{ .DayOfMonth }}<br />{{ .Entry.User }}</div>
+			<td class="{{ .Classname }}"><div style="height: 100%;" onMouseOver="ShowDiv(event, 'tip{{ .Entry.ID }}',false);"><div style="position: relative; top: 5px;">{{ .DayOfMonth }}<br />{{ .Entry.User }}</div>
 			</div></td>
 		{{end}}
 		</tr>
@@ -123,54 +190,56 @@ col.cal {
 </table>
 </div>
 </div>
-<!--
+
 
 <div id="newres" style="position: relative; top: -300px; left: 550px; border: 1px solid #888; width: 430px;">
 <b>Neue Reservation</b>
-<center style="color: red;"><?=$_SESSION['msg']?></center>
-<form action="../actions/save.php" method="post" name="inputform">
-	<input type="hidden" name="m" value="<?=$month?>"/>
-	<input type="hidden" name="y" value="<?=$year?>"/>
+<center style="color: red;">{{ .Message }}</center>
+<form action="doSave" method="post" name="inputform">
+	<input type="hidden" name="m" value="{{ .Cal.Month }}"/>
+	<input type="hidden" name="y" value="{{ .Cal.Year }}"/>
 <table width="100%" border="0" align="center" cellpadding="0"
 	cellspacing="0">
 	<tr>
 		<td><strong>Wer</strong></td>
-		<td><?=$login?></td>
+		<td>{{ .Username }}</td>
 	</tr>
 	<tr>
 		<td><strong>Von</strong></td>
 		<td><select id="bday" name="bday" size="1" onchange="changeEndValues('day')">
-		<? for($i=1;$i<=31;$i++){
-			echo "<option>".$i."</option>";
-		}?>
+		{{ range .Cal.AllDaysInMonth }}
+			<option>{{ . }}</option>
+
+		{{ end }}
 		</select> <select id="bmonth" name="bmonth" size="1" onchange="changeEndValues('month')">
-		<? for($i=1;$i<=12;$i++){
-			$checked = ($month == $i? "selected" : "");
-			echo "<option ".$checked.">".$i."</option>";
-		}?>
+		{{ range .Cal.AllMonths }}
+			<option>{{ . }}</option>
+
+		{{ end }}
 		</select> <select id="byear" name="byear" size="1" onchange="changeEndValues('year')">
-		<? for($i=-1;$i<=5;$i++){
-			$checked = ($year == ($currentYear + $i)? "selected" : "");
-			echo "<option ".$checked.">".($currentYear + $i)."</option>";
-		}?>
+		{{ range .Cal.AllYears }}
+			<option>{{ . }}</option>
+
+		{{ end }}
 		</select></td>
 	</tr>
 	<tr>
 		<td><strong>Bis</strong></td>
 				<td><select id="end_day" name="end_day" size="1">
-		<? for($i=1;$i<=31;$i++){
-			echo "<option>".$i."</option>";
-		}?>
+		{{ range .Cal.AllDaysInMonth }}
+			<option>{{ . }}</option>
+
+		{{ end }}
 		</select> <select id="end_month" name="end_month" size="1">
-		<? for($i=1;$i<=12;$i++){
-			$checked = ($month == $i? "selected" : "");
-			echo "<option ".$checked.">".$i."</option>";
-		}?>
+		{{ range .Cal.AllMonths }}
+			<option>{{ . }}</option>
+
+		{{ end }}
 		</select> <select id="end_year" name="end_year" size="1">
-		<? for($i=-1;$i<=5;$i++){
-			$checked = ($year == ($currentYear + $i)? "selected" : "");
-			echo "<option ".$checked.">".($currentYear + $i)."</option>";
-		}?>
+		{{ range .Cal.AllYears }}
+			<option>{{ . }}</option>
+
+		{{ end }}
 		</select></td>
 		
 	</tr>
@@ -185,9 +254,12 @@ col.cal {
 </form>
 </div>
 <div style="position: relative; top: -270px; left: 530px; width: 80px;">
-	<a href="../actions/logout.php">logout</a>
+	<a href="logout">logout</a>
 </div>
-<FORM name="phonechange" METHOD=POST ACTION="/actions/changephone.php">
+
+
+
+<!--FORM name="phonechange" METHOD=POST ACTION="/actions/changephone.php">
 <table>
 	<tr>
 		<td><B>Meine Daten ändern:</B>
@@ -237,17 +309,14 @@ col.cal {
 		<td>&nbsp;</td>
 	</tr>
 </table>
-</FORM>
+</FORM-->
 
 
-<?php 
-	renderTooltipContent($kalender, $login);
 
-	// delete all messages
-	$_SESSION["ids"] = '';
-	$_SESSION["msg"] = '';
-?>
+{{ range .Cal.AllEntries }}
+	{{ template "tooltip" . }}
+{{ end }}
 </div>
--->
+
 </body>
 </html>

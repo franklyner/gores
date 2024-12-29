@@ -1,0 +1,15 @@
+	{{ define "tooltip" }}
+        <div id="tip{{ .ID }}" hidden="true" style="visibility: hidden;">
+
+        <div style="width: 150px;">
+        {{ .User }}<br/>{{ .Begin.Format "02.01.2006" }} - {{ .End.Format "02.01.2006" }}<br/><br/>
+        {{ .Bemerkungen }}<br/>
+                
+        {{ if .IsOwn }}
+            <br/>
+            <a href="doDelete?id={{ .ID }}&m={{ .Month }}&y={{ .Year }}">löschen</a>
+        {{ end }}
+        </div>
+        </div>
+
+    {{ end }}
